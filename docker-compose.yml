@@ -1,0 +1,103 @@
+# Define the version of Docker Compose being used
+version: '3.8'
+
+# Define the services (containers) that make up the application
+services:
+  server:
+    # Specify environment variables from an external .env file
+    env_file:
+      - .env
+    
+    # Build the server service from a Dockerfile
+    build: 
+      context: ./            # Build context is the current directory
+      dockerfile: .dockerfiles/backend.dockerfile  # Path to the Dockerfile
+    
+    # Map ports from the host to the container
+    ports:
+      - "3000:3000"          # Map port 3000 on the host to port 3000 in the container
+    
+    # Mount a local directory into the container as a volume
+    volumes:
+      - ./backend:/app       # Mount the `backend` folder to `/app` inside the container
+    
+    # Set additional environment variables
+    environment:
+      OLLAMA_URL: "${OLLAMA_URL}"  # Set OLLAMA_URL from the .env file
+      DB_URL: "${DB_URL}"          # Set DB_URL from the .env file
+
+    # Attach the server to the `ollama-docker` network
+    networks:
+      - ollama-docker
+
+  ollama:
+    # Use a prebuilt image from Docker Hub
+    image: ollama/ollama:latest
+    
+    # Map ports from the host to the container
+    ports:
+      - 7869:11434            # Map port 7869 on the host to port 11434 in the container
+    
+    # Mount directories for data persistence
+    volumes:
+      - .:/code               # Mount the current directory into the container at `/code`
+      - ./ollama/ollama:/root/.ollama  # Persist Ollama data in a local directory
+    
+    # Specify a custom container name
+    container_name: ollama
+    
+    # Ensure the latest image is always pulled
+    pull_policy: always
+
+    # Keep the container's terminal session active
+    tty: true
+
+    # Restart the container automatically if it stops
+    restart: always
+
+    # Set environment variables for the Ollama service
+    environment:
+      - OLLAMA_KEEP_ALIVE=24h  # Set the keep-alive duration to 24 hours
+      - OLLAMA_HOST=0.0.0.0    # Bind the Ollama service to all network interfaces
+    
+    # Attach the service to the `ollama-docker` network
+    networks:
+      - ollama-docker
+
+  db:
+    # Use a prebuilt image for PostgreSQL with pgvector extension
+    image: pgvector/pgvector:pg16
+    
+    # Map ports from the host to the container
+    ports:
+      - 5432:5432             # Map port 5432 on the host to port 5432 in the container
+    
+    # Mount a directory for data persistence
+    volumes:
+      - db:/var/lib/postgresql/data  # Persist database data in a Docker-managed volume
+    
+    # Load environment variables from the .env file
+    env_file:
+      - .env
+
+    # Set environment variables for PostgreSQL
+    environment:
+      POSTGRES_USER: "${POSTGRES_USER}"            # PostgreSQL username from .env
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"    # PostgreSQL password from .env
+      POSTGRES_DB: "${POSTGRES_DB}"                # PostgreSQL database name from .env
+      POSTGRES_HOST_AUTH_METHOD: "trust"           # Disable password authentication (for development)
+
+    # Attach the database to the `ollama-docker` network
+    networks:
+      - ollama-docker
+
+# Define custom networks
+networks:
+  ollama-docker:
+    external: false  # The network is not external and will be created by Docker Compose
+
+# Define volumes for persistent storage
+volumes:
+  backend:          # Placeholder volume (not used in the services above)
+  ollama/ollama:    # Placeholder volume for Ollama service (could be corrected to avoid `/`)
+  db:               # Volume for PostgreSQL data
